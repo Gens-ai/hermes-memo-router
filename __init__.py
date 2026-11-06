@@ -31,6 +31,7 @@ def register(ctx) -> None:
     backend_config = ctx.get_config("backend_config", {}) or {}
     keyword = ctx.get_config("keyword", "memo")
     ttl = int(ctx.get_config("confirmation_ttl_seconds", 300))
+    implicit_confidence_threshold = float(ctx.get_config("implicit_confidence_threshold", 0.85))
 
     def _get_backend():
         return get_backend(backend_name, backend_config)
@@ -71,7 +72,11 @@ def register(ctx) -> None:
 
     ctx.register_hook(
         "pre_llm_call",
-        make_implicit_classify_hook(ctx, lambda: _get_backend().list_categories()),
+        make_implicit_classify_hook(
+            ctx,
+            lambda: _get_backend().list_categories(),
+            confidence_threshold=implicit_confidence_threshold,
+        ),
     )
 
     try:

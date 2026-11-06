@@ -34,3 +34,7 @@ config_schema:
   confirmation_ttl_seconds:
     type: int
     default: 300
+  implicit_confidence_threshold:
+    type: float
+    default: 0.85
+    description: "Minimum confidence (0-1) for the pre_llm_call implicit pass to suggest filing."
