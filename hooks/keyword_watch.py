@@ -108,11 +108,19 @@ def make_keyword_watch_hook(keyword: str, pending_store, ctx, get_backend):
                         "call any tool this turn."
                     ),
                 }
+            known_categories = backend.list_categories()
             try:
-                fragments = classify(ctx, text, backend.list_categories(), purpose="memo-router.keyword_watch")
+                fragments = classify(ctx, text, known_categories, purpose="memo-router.keyword_watch")
             except Exception:
                 fragments = []
             category = fragments[0]["category"] if fragments else "unsorted"
+            # The classifier is told to prefer known_categories but may propose a
+            # new one. If what comes back is neither a known category nor a sane
+            # short label, don't trust it blindly — fall back to "unsorted" rather
+            # than surface garbage (seen live: a stray identifier from elsewhere
+            # in context got returned as a "category").
+            if category not in known_categories and not _looks_like_category(category):
+                category = "unsorted"
             destination = backend.preview(category)
 
             pending_store.set(session_id, {"text": text, "category": category})
