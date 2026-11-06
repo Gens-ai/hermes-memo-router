@@ -53,6 +53,46 @@ class Fragment(TypedDict):
     confidence: float
 
 
+_INTENT_SCHEMA = {
+    "type": "object",
+    "properties": {"is_memo_request": {"type": "boolean"}},
+    "required": ["is_memo_request"],
+    "additionalProperties": False,
+}
+
+
+def is_memo_intent(ctx, text: str, purpose: str) -> bool:
+    """Decide whether `text` is an actual request to save/file something as a
+    memo, vs. just mentioning the trigger word in passing — e.g. talking
+    ABOUT the memo-router plugin/feature itself, asking a question about it,
+    or an unrelated sentence that happens to contain the keyword.
+
+    Fails open (returns True) on any LLM/parse hiccup, so a real memo never
+    gets silently swallowed by an infra blip.
+    """
+    instructions = (
+        "Decide whether the user's message is a REQUEST TO SAVE/FILE some piece of "
+        "content as a memo/note for later retrieval (e.g. 'memo - call the dentist', "
+        "'remember that...', a fact/idea/link they want recorded). Answer false if the "
+        "message is instead just talking ABOUT memos, notes, or the memo-router tool/"
+        "plugin itself (discussing how it works, asking a question about it, giving "
+        "feedback or filing a bug about it), or is an unrelated sentence that merely "
+        "contains the trigger word."
+    )
+    result = ctx.llm.complete_structured(
+        instructions=instructions,
+        input=[{"type": "text", "text": text}],
+        json_schema=_INTENT_SCHEMA,
+        schema_name="memo_router.intent",
+        purpose=purpose,
+        temperature=0.0,
+        max_tokens=64,
+    )
+    if result.content_type != "json" or not result.parsed:
+        return True
+    return bool(result.parsed.get("is_memo_request", True))
+
+
 def classify(ctx, text: str, known_categories: List[str], purpose: str) -> List[Fragment]:
     """Split `text` into one or more category-tagged fragments.
 

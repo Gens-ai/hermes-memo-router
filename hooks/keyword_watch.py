@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-from ..classify import classify, looks_like_category
+from ..classify import classify, is_memo_intent, looks_like_category
 
 _YES_RE = re.compile(r"^\s*(y|yes|yeah|yep|sure|do it)\s*[.!]?\s*$", re.IGNORECASE)
 _NO_RE = re.compile(r"^\s*(n|no|nope|nah|cancel|skip)\s*[.!]?\s*$", re.IGNORECASE)
@@ -83,6 +83,16 @@ def make_keyword_watch_hook(keyword: str, pending_store, ctx, get_backend):
             return None
 
         if keyword_re.search(text):
+            try:
+                has_intent = is_memo_intent(ctx, text, purpose="memo-router.intent_check")
+            except Exception:
+                has_intent = True  # fail open — don't let an infra hiccup swallow a real memo
+            if not has_intent:
+                # Keyword present but this isn't a request to file something —
+                # e.g. talking ABOUT the memo-router plugin/feature itself.
+                # Don't trigger the confirmation prompt; let it be a normal turn.
+                return None
+
             backend = get_backend()
             if backend.needs_setup():
                 return {
