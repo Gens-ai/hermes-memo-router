@@ -1,0 +1,35 @@
+name: memo-router
+version: 0.1.1
+description: >
+  Classifies memos (voice or text) and files them into your existing notes
+  system via pluggable backends (ships with local markdown files). Watches
+  every incoming message for the word "memo" and confirms before filing;
+  also classifies ordinary messages at low confidence for implicit
+  memo-worthy content.
+requires_hermes: ">=0.21.5"
+provides_tools:
+  - memo_route
+provides_hooks:
+  - pre_gateway_dispatch
+  - pre_llm_call
+# NOTE: `capabilities:` is NOT a plugin.yaml field — it belongs only in the
+# separate plugin-catalog/<name>.yaml submission file (see
+# docs/developer-guide/plugins/catalog-submission). Disclosure for that file:
+# reads/writes inside the user-configured backend_config.base_dir
+# (local_markdown backend), OUTSIDE the plugin's own plugin_data_dir(); LLM
+# calls via ctx.llm.complete_structured(); no network, no subprocesses.
+config_schema:
+  backend:
+    type: str
+    default: local_markdown
+    description: "Which destination backend to route memos to."
+  backend_config:
+    type: dict
+    description: "Backend-specific settings. For local_markdown: base_dir, category_overrides, unsorted_file."
+  keyword:
+    type: str
+    default: memo
+    description: "Word that triggers the explicit confirm-before-file flow."
+  confirmation_ttl_seconds:
+    type: int
+    default: 300
