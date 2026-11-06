@@ -7,26 +7,24 @@ so a Notion, Todoist, Google Keep, Apple Notes, or Obsidian-specific
 backend can be added later without touching the classification or
 trigger logic at all.
 
-## Why this is a plugin, not a skill
+## How it catches memos
 
 Two triggers run on every message, in every session, on every
-platform, before the model ever sees the content:
+platform, before you ever have to ask for anything:
 
-- **`pre_gateway_dispatch`** — scans every incoming gateway message for
-  the word "memo" (configurable) *before* auth/dispatch. On a hit, it
-  rewrites the message to ask the user to confirm filing, and resolves
-  a following yes/no reply using a small per-session pending-state
-  store. This can't be replicated by a skill: skills only run when
-  loaded into a session that's already decided to use them; this hook
-  runs unconditionally, on message traffic a skill was never invoked on.
-- **`pre_llm_call`** — a second, lower-confidence pass over every
-  message right before the LLM call, catching memo-worthy content that
-  never said the keyword (this is what covers voice messages: Hermes's
-  own STT already turns them into plain text by this point, so one
-  classifier handles both typed and spoken memos with no special
-  casing).
+- **Keyword watch** (`pre_gateway_dispatch`) — scans every incoming
+  message for the word "memo" (configurable) as it arrives. On a hit,
+  it asks you to confirm filing, then resolves your yes/no reply and
+  hands off to the tool. No slash command, no remembering syntax —
+  just say "memo" somewhere in your message.
+- **Implicit classification** (`pre_llm_call`) — a second, lower-confidence
+  pass over every message, catching memo-worthy content that never said
+  the keyword. This is also what covers voice messages: by the time
+  Hermes's own speech-to-text turns them into plain text, they look
+  exactly like a typed message, so the same classifier handles both
+  with no special casing.
 
-## Disclosures (per Hermes plugin-catalog admission rule 13)
+## Disclosures
 
 - **Reads/writes outside the plugin's own data directory.** The
   `local_markdown` backend reads and appends to markdown files inside
