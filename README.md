@@ -1,11 +1,10 @@
 # memo-router
 
 Classifies memos — spoken or typed — and files them into **your own**
-notes system, not a system this plugin invents. It ships with one
-backend (plain markdown files in a folder you already use) and is built
-so a Notion, Todoist, Google Keep, Apple Notes, or Obsidian-specific
-backend can be added later without touching the classification or
-trigger logic at all.
+notes system, not a system this plugin invents. It ships with two
+backends (plain markdown files, and an Obsidian vault) and is built so
+a Notion, Todoist, Google Keep, or any other destination can be added
+later without touching the classification or trigger logic at all.
 
 ## How it catches memos
 
@@ -57,9 +56,29 @@ platform, before you ever have to ask for anything:
 
 `base_dir` is the only thing you need to set for the default backend —
 point it at wherever you already keep markdown notes (`~/notes`,
-`~/my-docs`, an Obsidian vault, whatever). Categories are **discovered**
-from the `.md` files already there, not a fixed list the plugin ships
-with.
+`~/my-docs`, whatever). Categories are **discovered** from the `.md`
+files already there, not a fixed list the plugin ships with.
+
+### Obsidian backend
+
+```json
+{
+  "backend": "obsidian",
+  "backend_config": {
+    "vault_dir": "~/Documents/MyVault",
+    "memos_subdir": "Memos",
+    "link_from_category": true
+  }
+}
+```
+
+Unlike `local_markdown`'s flat append, each memo becomes its own atomic
+note under `memos_subdir`, with frontmatter (`created`, `tags: [memo,
+<category>]`) — and if an existing vault note matches the chosen
+category, a `[[wikilink]]` to the new note gets appended there too, so
+it shows up in that note's backlinks/graph like any other reference.
+Categories are discovered the same way as `local_markdown` (existing
+`.md` files in the vault, excluding `memos_subdir` itself).
 
 ## Adding a backend
 

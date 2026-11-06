@@ -12,9 +12,11 @@ from typing import Callable, Dict
 
 from .base import Backend
 from .local_markdown import LocalMarkdownBackend
+from .obsidian import ObsidianBackend
 
 _REGISTRY: Dict[str, Callable[[dict], Backend]] = {
     "local_markdown": LocalMarkdownBackend,
+    "obsidian": ObsidianBackend,
 }
 
 

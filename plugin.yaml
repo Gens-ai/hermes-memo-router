@@ -1,11 +1,12 @@
 name: memo-router
-version: 0.1.1
+version: 0.2.0
 description: >
   Classifies memos (voice or text) and files them into your existing notes
-  system via pluggable backends (ships with local markdown files). Watches
-  every incoming message for the word "memo" and confirms before filing;
-  also classifies ordinary messages at low confidence for implicit
-  memo-worthy content.
+  system via pluggable backends (ships with local markdown files and an
+  Obsidian vault backend). Watches every incoming message for the word
+  "memo" and confirms before filing — showing the destination and letting
+  you override the category; also classifies ordinary messages at low
+  confidence for implicit memo-worthy content.
 requires_hermes: ">=0.21.5"
 provides_tools:
   - memo_route
