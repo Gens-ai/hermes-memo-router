@@ -7,7 +7,23 @@ already using, no separate API key.
 
 from __future__ import annotations
 
+import re
 from typing import List, TypedDict
+
+# A sane category is short and label-like — guards against the classifier
+# (or a user's override reply) returning something that isn't really a
+# category: a full sentence, a question, or — seen live — a stray
+# identifier that leaked in from elsewhere in context.
+_CATEGORY_LIKE_RE = re.compile(r"^[a-z0-9][a-z0-9 _-]{0,39}$", re.IGNORECASE)
+
+
+def looks_like_category(text: str) -> bool:
+    stripped = text.strip()
+    if "?" in stripped or "!" in stripped:
+        return False
+    if len(stripped.split()) > 4:
+        return False
+    return bool(_CATEGORY_LIKE_RE.match(stripped))
 
 _SCHEMA = {
     "type": "object",
@@ -65,13 +81,22 @@ def classify(ctx, text: str, known_categories: List[str], purpose: str) -> List[
     if result.content_type != "json" or not result.parsed:
         return []
     fragments = result.parsed.get("fragments", [])
+    known_lower = {c.lower() for c in known_categories}
     cleaned: List[Fragment] = []
     for f in fragments:
         try:
+            category = str(f["category"]).strip().lower()
+            # Don't trust a category blindly just because the model returned
+            # it: if it's not one we told the model about AND it doesn't even
+            # look like a plausible short label, something went wrong (seen
+            # live: a stray identifier from elsewhere in context came back as
+            # a "category") — fall back to "unsorted" rather than surface it.
+            if category not in known_lower and not looks_like_category(category):
+                category = "unsorted"
             cleaned.append(
                 Fragment(
                     text=str(f["text"]).strip(),
-                    category=str(f["category"]).strip().lower(),
+                    category=category,
                     confidence=float(f["confidence"]),
                 )
             )

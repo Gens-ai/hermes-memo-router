@@ -20,23 +20,10 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-from ..classify import classify
+from ..classify import classify, looks_like_category
 
 _YES_RE = re.compile(r"^\s*(y|yes|yeah|yep|sure|do it)\s*[.!]?\s*$", re.IGNORECASE)
 _NO_RE = re.compile(r"^\s*(n|no|nope|nah|cancel|skip)\s*[.!]?\s*$", re.IGNORECASE)
-# A real category name is short and label-like, not a sentence/question the
-# user is actually directing at the assistant — guards against e.g. a
-# genuine follow-up question getting swallowed as a literal category name.
-_CATEGORY_LIKE_RE = re.compile(r"^[a-z0-9][a-z0-9 _-]{0,39}$", re.IGNORECASE)
-
-
-def _looks_like_category(text: str) -> bool:
-    stripped = text.strip()
-    if "?" in stripped or "!" in stripped:
-        return False
-    if len(stripped.split()) > 4:
-        return False
-    return bool(_CATEGORY_LIKE_RE.match(stripped))
 
 
 def make_keyword_watch_hook(keyword: str, pending_store, ctx, get_backend):
@@ -75,7 +62,7 @@ def make_keyword_watch_hook(keyword: str, pending_store, ctx, get_backend):
                     "action": "rewrite",
                     "text": "[memo-router] The user declined. Reply with a brief acknowledgement only.",
                 }
-            if _looks_like_category(text):
+            if looks_like_category(text):
                 # Short, label-like reply: treat as a category override and
                 # file immediately (no second round-trip) so e.g.
                 # "fishing-spots" or "ideas" both just work.
@@ -108,19 +95,14 @@ def make_keyword_watch_hook(keyword: str, pending_store, ctx, get_backend):
                         "call any tool this turn."
                     ),
                 }
-            known_categories = backend.list_categories()
             try:
-                fragments = classify(ctx, text, known_categories, purpose="memo-router.keyword_watch")
+                fragments = classify(ctx, text, backend.list_categories(), purpose="memo-router.keyword_watch")
             except Exception:
                 fragments = []
+            # classify() itself sanity-checks the category against the known
+            # list / a plausible-label shape, falling back to "unsorted" —
+            # see classify.looks_like_category().
             category = fragments[0]["category"] if fragments else "unsorted"
-            # The classifier is told to prefer known_categories but may propose a
-            # new one. If what comes back is neither a known category nor a sane
-            # short label, don't trust it blindly — fall back to "unsorted" rather
-            # than surface garbage (seen live: a stray identifier from elsewhere
-            # in context got returned as a "category").
-            if category not in known_categories and not _looks_like_category(category):
-                category = "unsorted"
             destination = backend.preview(category)
 
             pending_store.set(session_id, {"text": text, "category": category})
