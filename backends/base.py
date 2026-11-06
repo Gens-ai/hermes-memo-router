@@ -46,3 +46,12 @@ class Backend(abc.ABC):
         """True if this backend has no destination configured yet and
         should prompt the user once instead of silently guessing."""
         return False
+
+    def preview(self, category: str) -> str:
+        """Human-readable destination ``route(category, ...)`` would write
+        to, WITHOUT writing anything — lets callers (e.g. the keyword-watch
+        confirmation prompt) show the user where a memo would land before
+        they commit. Default implementation just echoes the category; a
+        backend that can resolve a real path/URL without side effects
+        should override this."""
+        return category

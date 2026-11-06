@@ -66,7 +66,7 @@ def register(ctx) -> None:
 
     ctx.register_hook(
         "pre_gateway_dispatch",
-        make_keyword_watch_hook(keyword, pending_store),
+        make_keyword_watch_hook(keyword, pending_store, ctx, _get_backend),
     )
 
     ctx.register_hook(

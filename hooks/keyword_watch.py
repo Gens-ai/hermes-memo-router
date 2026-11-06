@@ -2,6 +2,11 @@
 every platform, for the configured keyword (default "memo") BEFORE the
 message reaches auth/dispatch or the LLM.
 
+Classifies first, so the confirmation prompt shows the user WHERE the
+memo would land (and lets them override the category) before anything
+is written — rather than a blind yes/no that only reveals the
+destination after the fact.
+
 Deliberately uses only the documented hook contract — skip / rewrite /
 allow — never a private gateway API. On a keyword hit (or a pending
 confirmation reply), it REWRITES the event text to inject an instruction
@@ -15,11 +20,26 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
+from ..classify import classify
+
 _YES_RE = re.compile(r"^\s*(y|yes|yeah|yep|sure|do it)\s*[.!]?\s*$", re.IGNORECASE)
 _NO_RE = re.compile(r"^\s*(n|no|nope|nah|cancel|skip)\s*[.!]?\s*$", re.IGNORECASE)
+# A real category name is short and label-like, not a sentence/question the
+# user is actually directing at the assistant — guards against e.g. a
+# genuine follow-up question getting swallowed as a literal category name.
+_CATEGORY_LIKE_RE = re.compile(r"^[a-z0-9][a-z0-9 _-]{0,39}$", re.IGNORECASE)
 
 
-def make_keyword_watch_hook(keyword: str, pending_store):
+def _looks_like_category(text: str) -> bool:
+    stripped = text.strip()
+    if "?" in stripped or "!" in stripped:
+        return False
+    if len(stripped.split()) > 4:
+        return False
+    return bool(_CATEGORY_LIKE_RE.match(stripped))
+
+
+def make_keyword_watch_hook(keyword: str, pending_store, ctx, get_backend):
     keyword_re = re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE)
 
     async def _hook(event: Any, gateway: Any, session_store: Any, **kwargs) -> Optional[dict]:
@@ -35,31 +55,71 @@ def make_keyword_watch_hook(keyword: str, pending_store):
         # chat_id alone collides across platforms/forum-threads; compose a key.
         session_id = f"{platform}:{chat_id}:{thread_id}"
 
-        pending = pending_store.peek(str(session_id))
+        pending = pending_store.peek(session_id)
         if pending is not None:
+            memo_text = pending["text"]
+            category = pending["category"]
+
             if _YES_RE.match(text):
-                pending_store.pop(str(session_id))
+                pending_store.pop(session_id)
                 injected = (
                     "[memo-router] The user confirmed. Call the memo_route tool with "
-                    f"text={pending!r} now, then reply with a short one-line confirmation "
-                    "of where it was filed. Do not ask anything else this turn."
+                    f"text={memo_text!r}, category={category!r} now, then reply with a "
+                    "short one-line confirmation of where it was filed. Do not ask "
+                    "anything else this turn."
                 )
                 return {"action": "rewrite", "text": injected}
             if _NO_RE.match(text):
-                pending_store.pop(str(session_id))
+                pending_store.pop(session_id)
                 return {
                     "action": "rewrite",
                     "text": "[memo-router] The user declined. Reply with a brief acknowledgement only.",
                 }
-            # Anything else: drop the stale pending state and fall through to normal handling.
-            pending_store.pop(str(session_id))
+            if _looks_like_category(text):
+                # Short, label-like reply: treat as a category override and
+                # file immediately (no second round-trip) so e.g.
+                # "fishing-spots" or "ideas" both just work.
+                pending_store.pop(session_id)
+                override_category = text.strip()
+                injected = (
+                    "[memo-router] The user wants a different category. Call the "
+                    f"memo_route tool with text={memo_text!r}, category={override_category!r} "
+                    "now, then reply with a short one-line confirmation of where it was "
+                    "filed. Do not ask anything else this turn."
+                )
+                return {"action": "rewrite", "text": injected}
+            # Doesn't look like yes/no/a category — probably an unrelated message
+            # (a question, a new topic) rather than an answer to the prompt. Drop
+            # the pending confirmation and let this be handled as a normal turn,
+            # instead of misfiling a sentence as a literal category name.
+            pending_store.pop(session_id)
             return None
 
         if keyword_re.search(text):
-            pending_store.set(str(session_id), text)
+            backend = get_backend()
+            if backend.needs_setup():
+                return {
+                    "action": "rewrite",
+                    "text": (
+                        "[memo-router] The user wants to file a memo but no notes "
+                        "destination is configured yet. Ask them where they keep "
+                        "notes (a folder path) and tell them to set it via "
+                        "memo-router's backend_config.base_dir setting. Do not "
+                        "call any tool this turn."
+                    ),
+                }
+            try:
+                fragments = classify(ctx, text, backend.list_categories(), purpose="memo-router.keyword_watch")
+            except Exception:
+                fragments = []
+            category = fragments[0]["category"] if fragments else "unsorted"
+            destination = backend.preview(category)
+
+            pending_store.set(session_id, {"text": text, "category": category})
             injected = (
                 "[memo-router] The user's message contains the trigger word. Ask them: "
-                f'"Want me to file that as a memo? -> {text!r}" and wait for yes/no. '
+                f'"File this as a memo under \'{category}\' ({destination})? Reply yes, '
+                f'no, or name a different category." Quote their original text: {text!r}. '
                 "Do not call any tool yet, do not do anything else this turn."
             )
             return {"action": "rewrite", "text": injected}

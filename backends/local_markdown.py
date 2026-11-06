@@ -73,6 +73,11 @@ class LocalMarkdownBackend(Backend):
                 return path
         return self.base_dir / self.unsorted_file
 
+    def preview(self, category: str) -> str:
+        if self.base_dir is None:
+            return category
+        return str(self._resolve_path(category))
+
     def route(self, category: str, text: str) -> RouteResult:
         if self.base_dir is None:
             return RouteResult(ok=False, category=category, destination="", error="base_dir not configured")
