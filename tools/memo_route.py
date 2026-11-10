@@ -6,13 +6,24 @@ from __future__ import annotations
 import json
 
 from ..classify import classify
+from ..text_cleanup import strip_filing_boilerplate
 
 
 def make_memo_route_handler(ctx, get_backend):
     def handler(args: dict, **kw) -> str:
-        text = (args.get("text") or "").strip()
-        if not text:
+        raw = (args.get("text") or "").strip()
+        if not raw:
             return json.dumps({"success": False, "error": "text is required"})
+
+        # The trigger keyword and "add this to X" phrasing are instructions to
+        # the plugin, not part of the note. Strip them once, here, so every
+        # entrypoint (/memo, keyword-watch confirmation, category override,
+        # implicit pass, a direct tool call) files the same clean text.
+        try:
+            keyword = ctx.get_config("keyword", "memo")
+        except Exception:
+            keyword = "memo"
+        text = strip_filing_boilerplate(raw, keyword)
 
         backend = get_backend()
         if backend.needs_setup():

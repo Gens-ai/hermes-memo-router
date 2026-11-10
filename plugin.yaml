@@ -1,5 +1,5 @@
 name: memo-router
-version: 0.2.0
+version: 0.2.1
 description: >
   Classifies memos (voice or text) and files them into your existing notes
   system via pluggable backends (ships with local markdown files and an

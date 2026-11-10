@@ -27,6 +27,16 @@ platform, before you ever have to ask for anything:
   exactly like a typed message, so the same classifier handles both
   with no special casing.
 
+What gets written is the memo, not the instruction. "memo - bookmark
+https://example.com for later" is filed as
+`- https://example.com for later`; a trailing "…, add to bookmarks" goes
+too. Only a prefix at the very start or a filing clause at the very end
+is removed, never anything mid-sentence, and a strip that would leave
+nothing behind is discarded in favour of the original text — so the worst
+case is a slightly chatty note rather than a lost one. An ordinary last
+word that happens to belong to the filing vocabulary ("buy a new log")
+is left alone.
+
 ## Disclosures
 
 - **Reads/writes outside the plugin's own data directory.** The
