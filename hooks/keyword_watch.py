@@ -44,8 +44,12 @@ def make_keyword_watch_hook(keyword: str, pending_store, ctx, get_backend):
 
         pending = pending_store.peek(session_id)
         if pending is not None:
-            memo_text = pending["text"]
-            category = pending["category"]
+            memo_text = pending.get("text") if isinstance(pending, dict) else None
+            category = pending.get("category") if isinstance(pending, dict) else None
+            if not memo_text or not category:
+                # Unreadable pending entry: drop it and treat this as a normal turn.
+                pending_store.pop(session_id)
+                return None
 
             if _YES_RE.match(text):
                 pending_store.pop(session_id)

@@ -31,7 +31,12 @@ class PendingStore:
             return {}
 
     def _save(self, data: dict) -> None:
-        self.path.write_text(json.dumps(data))
+        try:
+            self.path.write_text(json.dumps(data))
+        except OSError:
+            # A lost confirmation costs the user one retry; a raise inside a
+            # gateway hook costs them the message.
+            pass
 
     def set(self, session_id: str, payload: Any) -> None:
         data = self._load()
@@ -49,8 +54,12 @@ class PendingStore:
         return self._unwrap(data.get(session_id))
 
     def _unwrap(self, entry: Optional[dict]) -> Optional[Any]:
-        if entry is None:
+        if not isinstance(entry, dict):
             return None
-        if time.time() - entry["ts"] > self.ttl_seconds:
+        try:
+            if time.time() - float(entry["ts"]) > self.ttl_seconds:
+                return None
+            return entry["payload"]
+        except (KeyError, TypeError, ValueError):
+            # A hand-edited or truncated store is not worth a traceback.
             return None
-        return entry["payload"]

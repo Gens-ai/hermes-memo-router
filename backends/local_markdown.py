@@ -1,7 +1,7 @@
 """Default v1 backend: plain markdown files in a user-configured directory.
 
 Deliberately NOT opinionated about the user's topic taxonomy or note
-format (see PLUGIN-008 design doc / README for the reasoning):
+format (see the README for the reasoning):
 
 - Categories are DISCOVERED from whatever .md files already exist under
   base_dir, not a fixed enum shipped by the plugin.
@@ -12,12 +12,12 @@ format (see PLUGIN-008 design doc / README for the reasoning):
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 from typing import List, Optional
 
 from .base import Backend, RouteResult
+from ..path_guard import guard_write
 
 
 def _slugify(name: str) -> str:
@@ -83,15 +83,25 @@ class LocalMarkdownBackend(Backend):
             return RouteResult(ok=False, category=category, destination="", error="base_dir not configured")
         try:
             target = self._resolve_path(category)
+            allowed, error, _checks = guard_write(target, self.base_dir)
+            if not allowed:
+                return RouteResult(ok=False, category=category, destination="", error=error)
             created_new = not target.exists()
             target.parent.mkdir(parents=True, exist_ok=True)
             existing = target.read_text() if target.exists() else ""
             style = self.config.get("note_templates", {}).get(category) or _guess_line_style(existing)
-            line = style.format(text=text.strip())
+            try:
+                line = style.format(text=text.strip())
+            except (KeyError, IndexError, ValueError):
+                # A hand-written note_templates entry with a stray placeholder
+                # must not cost the user their memo.
+                line = text.strip()
             with target.open("a") as f:
                 if existing and not existing.endswith("\n"):
                     f.write("\n")
                 f.write(line.rstrip("\n") + "\n")
             return RouteResult(ok=True, category=category, destination=str(target), created_new_destination=created_new)
-        except OSError as exc:
+        except Exception as exc:
+            # route() runs inside hook callbacks that swallow exceptions, so a
+            # raise here would be an invisible failure. Report it instead.
             return RouteResult(ok=False, category=category, destination="", error=str(exc))

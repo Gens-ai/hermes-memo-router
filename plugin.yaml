@@ -1,28 +1,46 @@
 name: memo-router
-version: 0.2.1
+version: 0.3.0
 description: >
   Classifies memos (voice or text) and files them into your existing notes
   system via pluggable backends (ships with local markdown files and an
   Obsidian vault backend). Watches every incoming message for the word
-  "memo" and confirms before filing — showing the destination and letting
+  "memo" and confirms before filing, showing the destination and letting
   you override the category; also classifies ordinary messages at low
   confidence for implicit memo-worthy content.
+author: Joe Kneeland
+license: MIT
+homepage: https://github.com/Gens-ai/hermes-memo-router
+tags: [memos, notes, classification, obsidian, markdown, voice]
 requires_hermes: ">=0.21.5"
 provides_tools:
   - memo_route
 provides_hooks:
   - pre_gateway_dispatch
   - pre_llm_call
-# NOTE: `capabilities:` is NOT a plugin.yaml field — it belongs only in the
-# separate plugin-catalog/<name>.yaml submission file (see
-# docs/developer-guide/plugins/catalog-submission). Disclosure for that file:
-# reads/writes inside the user-configured backend_config.base_dir
-# (local_markdown backend), OUTSIDE the plugin's own plugin_data_dir(); LLM
-# calls via ctx.llm.complete_structured(); no network, no subprocesses.
+# `capabilities:` is NOT a plugin.yaml field — it belongs only in the separate
+# plugin-catalog/<name>.yaml submission file. register() also adds a `/memo`
+# slash command and a bundled skill (memo-router-routing); neither is a
+# declarable manifest capability, and both are listed in the README's
+# "What it registers" table.
+#
+# Rule-13 disclosure (mirrored in the README and the entry PR):
+#   - reads and appends markdown inside the user-configured
+#     backend_config.base_dir / vault_dir, which is OUTSIDE the plugin's own
+#     plugin_data_dir(); every write passes a containment + Hermes-home +
+#     write-denylist guard first (path_guard.py)
+#   - rewrites incoming gateway message text (pre_gateway_dispatch) and
+#     injects turn context (pre_llm_call)
+#   - one extra LLM call per classified message, via ctx.llm.complete_structured()
+#     (the implicit pass is switchable with implicit_enabled)
+#   - no network calls, no subprocesses, no credentials held, no telemetry
 config_schema:
   backend:
     type: str
     default: local_markdown
+    # Keep in sync with backends/registry.py::_REGISTRY. A `choices` list makes
+    # this a dropdown in the Desktop/TUI settings page and refuses a value
+    # outside it, instead of a free-text field that fails at route() time.
+    choices: [local_markdown, obsidian]
     description: "Which destination backend to route memos to."
   backend_config:
     type: dict
@@ -38,3 +56,7 @@ config_schema:
     type: float
     default: 0.85
     description: "Minimum confidence (0-1) for the pre_llm_call implicit pass to suggest filing."
+  implicit_enabled:
+    type: bool
+    default: true
+    description: "Run the pre_llm_call implicit pass. Off means no extra LLM call per message; the keyword trigger still works."

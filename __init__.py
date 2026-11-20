@@ -1,8 +1,7 @@
 """memo-router: classify memos (voice or text) and file them into the
 user's existing notes system via a pluggable backend.
 
-See README.md for the design rationale and PLUGIN-008 in
-Gens-ai/homie-space for the full decision log.
+See README.md for the design rationale.
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ def register(ctx) -> None:
     keyword = ctx.get_config("keyword", "memo")
     ttl = int(ctx.get_config("confirmation_ttl_seconds", 300))
     implicit_confidence_threshold = float(ctx.get_config("implicit_confidence_threshold", 0.85))
+    implicit_enabled = bool(ctx.get_config("implicit_enabled", True))
 
     def _get_backend():
         return get_backend(backend_name, backend_config)
@@ -76,6 +76,7 @@ def register(ctx) -> None:
             ctx,
             lambda: _get_backend().list_categories(),
             confidence_threshold=implicit_confidence_threshold,
+            enabled=implicit_enabled,
         ),
     )
 

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .base import Backend, RouteResult
+from ..path_guard import guard_write
 
 
 def _slugify(name: str) -> str:
@@ -91,6 +92,10 @@ class ObsidianBackend(Backend):
             timestamp = datetime.now(timezone.utc)
             note_path = memos_dir / f"{timestamp.strftime('%Y%m%d%H%M%S')}-{slug}.md"
 
+            allowed, error, _checks = guard_write(note_path, self.vault_dir)
+            if not allowed:
+                return RouteResult(ok=False, category=category, destination="", error=error)
+
             tags = ["memo", _slugify(category), *self.extra_tags]
             frontmatter = (
                 "---\n"
@@ -102,7 +107,12 @@ class ObsidianBackend(Backend):
 
             linked_note: Optional[Path] = None
             if self.link_from_category:
-                linked_note = self._find_category_note(category)
+                candidate = self._find_category_note(category)
+                # The same gate as the memo note itself: a vault entry can be a
+                # symlink pointing anywhere, and appending a wikilink is still a
+                # write. Skip the backlink rather than fail the filed memo.
+                if candidate is not None and guard_write(candidate, self.vault_dir)[0]:
+                    linked_note = candidate
                 if linked_note is not None:
                     existing = linked_note.read_text()
                     with linked_note.open("a") as f:
@@ -114,5 +124,7 @@ class ObsidianBackend(Backend):
             if linked_note is not None:
                 destination += f" (linked from {linked_note.name})"
             return RouteResult(ok=True, category=category, destination=destination, created_new_destination=True)
-        except OSError as exc:
+        except Exception as exc:
+            # route() runs inside hook callbacks that swallow exceptions, so a
+            # raise here would be an invisible failure. Report it instead.
             return RouteResult(ok=False, category=category, destination="", error=str(exc))
