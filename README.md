@@ -147,7 +147,8 @@ takes you at your word.
   "keyword": "memo",
   "confirmation_ttl_seconds": 300,
   "implicit_confidence_threshold": 0.85,
-  "implicit_enabled": true
+  "implicit_enabled": true,
+  "implicit_keyword_only": false
 }
 ```
 
@@ -195,6 +196,10 @@ reference. Categories are discovered the same way as `local_markdown`
   often, or set `implicit_enabled: false` to switch the pass off entirely —
   the keyword trigger and `/memo` keep working, and you stop paying per
   message.
+- The reply waits for that call, typically a few seconds. Set
+  `implicit_keyword_only: true` to run it only on messages that contain the
+  keyword: voice memos that say it are still caught, and everything else
+  skips the call. You lose suggestions on messages that never say it.
 
 ## Adding a backend
 
@@ -222,6 +227,7 @@ No Hermes process and no pytest required:
 
 ```bash
 python3 tests/test_text_cleanup.py
+python3 tests/test_implicit_gate.py
 python3 tests/test_path_guard.py
 python3 tests/test_backend_seam.py
 # or, with pytest installed:

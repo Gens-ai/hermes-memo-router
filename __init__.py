@@ -32,6 +32,7 @@ def register(ctx) -> None:
     ttl = int(ctx.get_config("confirmation_ttl_seconds", 300))
     implicit_confidence_threshold = float(ctx.get_config("implicit_confidence_threshold", 0.85))
     implicit_enabled = bool(ctx.get_config("implicit_enabled", True))
+    implicit_keyword_only = bool(ctx.get_config("implicit_keyword_only", False))
 
     def _get_backend():
         return get_backend(backend_name, backend_config)
@@ -77,6 +78,8 @@ def register(ctx) -> None:
             lambda: _get_backend().list_categories(),
             confidence_threshold=implicit_confidence_threshold,
             enabled=implicit_enabled,
+            keyword_only=implicit_keyword_only,
+            keyword=keyword,
         ),
     )
 

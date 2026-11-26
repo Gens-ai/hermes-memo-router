@@ -1,5 +1,5 @@
 name: memo-router
-version: 0.3.0
+version: 0.4.0
 description: >
   Classifies memos (voice or text) and files them into your existing notes
   system via pluggable backends (ships with local markdown files and an
@@ -31,7 +31,8 @@ provides_hooks:
 #   - rewrites incoming gateway message text (pre_gateway_dispatch) and
 #     injects turn context (pre_llm_call)
 #   - one extra LLM call per classified message, via ctx.llm.complete_structured()
-#     (the implicit pass is switchable with implicit_enabled)
+#     (the implicit pass is switchable with implicit_enabled, or limited
+#     to messages containing the keyword with implicit_keyword_only)
 #   - no network calls, no subprocesses, no credentials held, no telemetry
 config_schema:
   backend:
@@ -60,3 +61,7 @@ config_schema:
     type: bool
     default: true
     description: "Run the pre_llm_call implicit pass. Off means no extra LLM call per message; the keyword trigger still works."
+  implicit_keyword_only:
+    type: bool
+    default: false
+    description: "Run the implicit pass only on messages containing the keyword. Other messages get no extra LLM call and no wait."

@@ -17,10 +17,15 @@ switchable. The hook stays registered either way and returns early when
 it is off: dropping the registration instead would make the manifest's
 declared hooks disagree with what register() actually registers, which
 catalog rule 6 treats as a security issue rather than a config choice.
+
+The call is also blocking: the reply waits for it. With keyword_only the
+pass runs just for messages that say the keyword, which keeps the
+voice-memo case and spares every other message the wait.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any, List, Optional
 
 from ..classify import classify
@@ -28,7 +33,10 @@ from ..classify import classify
 
 def make_implicit_classify_hook(
     ctx, list_categories, confidence_threshold: float = 0.85, enabled: bool = True,
+    keyword_only: bool = False, keyword: str = "memo",
 ):
+    keyword_re = re.compile(rf"\b{re.escape(keyword)}\b", re.IGNORECASE)
+
     def _hook(
         session_id: str, task_id: str, turn_id: str, user_message: Any,
         is_first_turn: bool, **kwargs,
@@ -38,6 +46,11 @@ def make_implicit_classify_hook(
         text = user_message if isinstance(user_message, str) else getattr(user_message, "content", None)
         if not isinstance(text, str) or len(text.strip()) < 8:
             return None
+        if keyword_only:
+            # "[memo-router] ..." is the keyword hook's own rewrite: already
+            # handled there, and it always contains the plugin's name.
+            if text.lstrip().startswith("[memo-router]") or not keyword_re.search(text):
+                return None
         try:
             fragments = classify(ctx, text, list_categories(), purpose="memo-router.implicit")
         except Exception:
